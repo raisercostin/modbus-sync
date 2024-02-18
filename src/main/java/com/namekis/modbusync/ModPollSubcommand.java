@@ -2,6 +2,7 @@ package com.namekis.modbusync;
 
 import java.util.concurrent.Callable;
 
+import picocli.CommandLine;
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -9,7 +10,17 @@ import picocli.CommandLine.Parameters;
 
 @Command(name = "modpoll", mixinStandardHelpOptions = true, version = "modpoll 1.0",
     description = "Communicates with MODBUS slave devices.")
-public class ModPollOptions implements Callable<Integer> {
+public class ModPollSubcommand implements Callable<Integer> {
+  public static void main(String[] args) throws Exception {
+    ModPollSubcommand modPollOptions = new ModPollSubcommand();
+    int exitCode = new CommandLine(modPollOptions).execute("192.168.1.112".split("\s+"));
+    System.exit(exitCode);
+    //
+    //    // ModPoll.main(new String[] {});
+    //    // ModPoll.main("-a 1 -m2 tcp -p 8899 -t 1 -r 1 -c 125 -1 192.168.1.112".split("\s+"));
+    //    read("--tcp 192.168.1.112 --tcp-port 8899 --config chofu3.csv".split("\s+"));
+    //    List<String[]> config = readAllLines();
+  }
 
   enum Protocol {
     ascii,

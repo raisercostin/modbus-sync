@@ -81,8 +81,11 @@ Commands:
 ## TODO
 
 - write
+- write multiple
 - diff
 - sort by a column
+- hobby
+  - modpoll interface using picocli
 
 ## History
 

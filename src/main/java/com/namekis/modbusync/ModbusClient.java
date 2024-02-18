@@ -15,19 +15,13 @@ import com.google.common.base.Preconditions;
 import com.namekis.modbusync.ModbusParam.ModbusFunction;
 import com.namekis.modbusync.ModbusParam.ModbusType;
 import com.namekis.modbusync.ModbusyncConfig.Transport;
-import com.namekis.modbusync.ModbusyncConfig.Transport.TcpUdp;
 import com.opencsv.CSVReader;
-import com.serotonin.modbus4j.ModbusMaster;
 import com.serotonin.modbus4j.code.DataType;
 import com.serotonin.modbus4j.exception.ErrorResponseException;
 import com.serotonin.modbus4j.exception.ModbusTransportException;
 import com.serotonin.modbus4j.locator.BaseLocator;
 import com.serotonin.modbus4j.locator.NumericLocator;
-import io.vavr.API;
 import io.vavr.collection.Iterator;
-import io.vavr.collection.Seq;
-import io.vavr.control.Try;
-import picocli.CommandLine;
 
 public class ModbusClient implements AutoCloseable {
   private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ModbusClient.class);
@@ -36,7 +30,6 @@ public class ModbusClient implements AutoCloseable {
     int code();
   }
 
-  public final ModbusMaster modbus4j;
   public final ModbusTCPMaster j2mod;
   public final int unitId;
 
@@ -57,15 +50,6 @@ public class ModbusClient implements AutoCloseable {
     //    //params.setLingerTime(501);
     //    params.setEncapsulated(false);
     this.unitId = unitId;
-    this.modbus4j = null;
-    //    this.modbus4j = factory.createTcpMaster(params, true, -1);
-    //    modbus4j.setExceptionHandler(e -> {
-    //      if (e instanceof WaitingRoomException) {
-    //        log.trace("modbus implementation error?", e);
-    //      } else {
-    //        log.error("modbus", e);
-    //      }
-    //    });
     //ModbusMaster master = ModbusSlaveFactory.createSerialSlave(serialParams);
     //    try {
     //      modbus4j.init();
@@ -159,82 +143,9 @@ public class ModbusClient implements AutoCloseable {
     return buffer;
   }
 
-  public int readOld(ModbusParam param) {
-    return readOld(param.type.readMultiple, param.address);
-  }
-
-  public int readOld(FunctionCodeExtension code, int offset) {
-    try {
-      int dataType = DataType.TWO_BYTE_INT_SIGNED;
-      BaseLocator locator = null;
-      if (code instanceof ModbusFunction c) {
-        switch (c) {
-          case F01_READ_COILS:
-            locator = BaseLocator.coilStatus(unitId, offset);
-            break;
-          case F02_READ_DISCRETE_INPUTS:
-            locator = BaseLocator.inputStatus(unitId, offset);
-            break;
-          case F03_READ_HOLDING_REGISTER:
-            locator = BaseLocator.holdingRegister(unitId, offset, dataType);
-            break;
-          case F04_READ_INPUT_REGISTERS:
-            locator = BaseLocator.inputRegister(unitId, offset, dataType);
-            break;
-          //case F17_REPORT_SLAVE_ID:
-          //locator = new StringLocator(slaveId, code.code(), offset, DataType.CHAR, 1, StringLocator.ASCII);
-          //locator = new StringLocator(slaveId, code.code(), offset, DataType.CHAR, 1, StringLocator.ASCII);
-          //locator = new BinaryLocator(slaveId, code.code(), offset, 1);
-          //break;
-          case F07_READ_EXCEPTION_STATUS:
-          case F08_DIAGNOSTICS:
-          case F13_READ_DEVICE_IDENTIFICATION_MEI_TRANSPORT:
-          case F14_READ_DEVICE_IDENTIFICATION:
-            //locator = BaseLocator.createLocator(slaveId, code.code(), offset, dataType, offset, 2, StringLocator.ASCII);
-            locator = new NumericLocator(unitId, code.code(), offset, dataType);
-            break;
-          default:
-            if (c.readOperation) {
-              locator = new NumericLocator(unitId, code.code(), offset, dataType);
-            } else {
-              throw new RuntimeException("Don't know how to execute function with code %s".formatted(code));
-            }
-        }
-      } else {
-        throw new RuntimeException("Don't know how to execute function with code %s".formatted(code));
-      }
-      Object returnValue = modbus4j.getValue(locator);
-      if (returnValue instanceof Boolean b) {
-        return b ? 1 : 0;
-      }
-      if (returnValue instanceof Short s) {
-        return s;
-      }
-      return (int) returnValue;
-    } catch (ModbusTransportException e) {
-      throw new RuntimeException(e);
-    } catch (ErrorResponseException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
   @Override
   public void close() throws Exception {
-    if (modbus4j != null) {
-      modbus4j.destroy();
-    }
     j2mod.disconnect();
-  }
-
-  public static void main(String[] args) throws Exception {
-    ModPollOptions modPollOptions = new ModPollOptions();
-    int exitCode = new CommandLine(modPollOptions).execute("192.168.1.112".split("\s+"));
-    System.exit(exitCode);
-    //
-    //    // ModPoll.main(new String[] {});
-    //    // ModPoll.main("-a 1 -m2 tcp -p 8899 -t 1 -r 1 -c 125 -1 192.168.1.112".split("\s+"));
-    //    read("--tcp 192.168.1.112 --tcp-port 8899 --config chofu3.csv".split("\s+"));
-    //    List<String[]> config = readAllLines();
   }
 
   public static List<String[]> readAllLines(Path filePath) throws Exception {
@@ -242,48 +153,6 @@ public class ModbusClient implements AutoCloseable {
       try (CSVReader csvReader = new CSVReader(reader)) {
         return csvReader.readAll();
       }
-    }
-  }
-
-  public static void a() throws Exception {
-    String address = "192.168.1.112";
-    int port = 8899;
-    try (ModbusClient client = new ModbusClient(new Transport(new TcpUdp(address, port), null), 1)) {
-      //int i = 11;
-      //System.out.println("%s: %s".formatted(i, client.read(FunctionCode._04_READ_INPUT_REGISTERS, i)));
-
-      Seq<ModbusFunction> readFunctions = API.Seq(
-        //FunctionCode.values()).filter(x -> x.readOperation);
-        //        FunctionCode.F01_READ_COILS,
-        //        FunctionCode.F02_READ_DISCRETE_INPUTS,
-        //        FunctionCode.F03_READ_HOLDING_REGISTER,
-        //        FunctionCode.F04_READ_INPUT_REGISTERS
-        //FunctionCode.F07_READ_EXCEPTION_STATUS); error:Unsupported function
-        //FunctionCode.F08_DIAGNOSTICS, error:Unsupported function
-        //FunctionCode.F11_GET_COM_EVENT_COUNTER, //error:Don't know how to execute function with code F11_GET_COM_EVENT_COUNTER
-        //FunctionCode.F12_GET_COM_EVENT_LOG, //error:Don't know how to execute function with code F11_GET_COM_EVENT_COUNTER
-        //FunctionCode.F13, error:Unsupported function
-        //FunctionCode.F14, error:Unsupported function
-        ModbusFunction.F17_REPORT_SLAVE_ID //error:Don't know how to execute function with code F11_GET_COM_EVENT_COUNTER
-      //FunctionCode.F20_READ_FILE_RECORD, //error:Don't know how to execute function with code F20_READ_FILE_RECORD
-      //FunctionCode.F23_READ_WRITE_MULTIPLE_REGISTERS,
-      //FunctionCode.F24_READ_FIFO_QUEUE,
-      //FunctionCode.F43_READ_DEVICE_IDENTIFICATION
-      );
-      readFunctions.forEach(f -> {
-        for (int i = 0; i < 130; i++) {
-          int i2 = i;
-          Object value = Try.of(() -> client.readOld(f, i2))
-            //          .map(x -> (boolean) x ? "1" : "0")
-            //.getOrElseGet(x -> "error:" + ExceptionUtils.getRootCause(x).getMessage());
-            .get();
-          System.out.println("F%s\t%s\t%s".formatted(f.code, i, value));
-          if (i == 0 && value.toString().startsWith("error:Unsupported")) {
-            break;
-          }
-        }
-      });
-      System.out.println("end");
     }
   }
 }
